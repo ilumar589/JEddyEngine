@@ -13,7 +13,7 @@ public class Main {
         final var sdlInitOk = SDL3.SDL_Init(SDL3.SDL_INIT_VIDEO());
         assert sdlInitOk;
 
-        try(final var arena = Arena.ofAuto()) {
+        try (final var arena = Arena.ofConfined()) {
             final var windowTitle = arena.allocateFrom("Hello SDL3");
 
             final var window = SDL3.SDL_CreateWindow(windowTitle, 1280, 780, 0);
@@ -24,34 +24,37 @@ public class Main {
 
             boolean running = true;
             while (running) {
-                running = SDL3.SDL_PollEvent(sdlEvent);
+                while (SDL3.SDL_PollEvent(sdlEvent)) {
+                    int type = SDL_Event.type(sdlEvent);
 
-                int type = SDL_Event.type(sdlEvent);
+                    // QUIT
+                    int quit = SDL3.SDL_EVENT_QUIT();
+                    if (type == quit) {
+                        running = false;
+                        break;
+                    }
 
-                // QUIT
-                int quit = SDL3.SDL_EVENT_QUIT();
-                if (type == quit) {
-                    running = false;
+                    // KEY DOWN
+                    int keyDown = SDL3.SDL_EVENT_KEY_DOWN();
+                    if (type == keyDown) {
+                        final var key = SDL_Event.key(sdlEvent);
+                        int scancode = SDL_KeyboardEvent.key(key);
+
+                        IO.println("Key pressed: " + scancode);
+                        break;
+                    }
+
+                    // window closed
+                    int windowsClosedRequested = SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED();
+                    if (type == windowsClosedRequested) {
+                        running = false;
+                        break;
+                    }
+
+                    // default
+                    IO.println("Unknown event type: " + type);
+                    break;
                 }
-
-                // KEY DOWN
-                int keyDown = SDL3.SDL_EVENT_KEY_DOWN();
-                if (type == keyDown) {
-                    final var key = SDL_Event.key(sdlEvent);
-                    int scancode = SDL_KeyboardEvent.key(key);
-
-                    IO.println("Key pressed: " + scancode);
-                }
-
-                // window closed
-                int windowsClosedRequested = SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED();
-                if (type == windowsClosedRequested) {
-                    running = false;
-                }
-
-                // default
-                IO.println("Unknown event type: " + type);
-
             }
 
             SDL3.SDL_DestroyWindow(window);
