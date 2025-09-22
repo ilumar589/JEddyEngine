@@ -95,32 +95,32 @@
                 </executions>
             </plugin>
 
-            <!-- 4) Run from target/ so SDL3.dll is picked up -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.5.1</version>
-                <executions>
-                    <execution>
-                        <id>run-app</id>
-                        <phase>verify</phase> <!-- runs after compile/package/copies -->
-                        <goals><goal>exec</goal></goals>
-                        <configuration>
-                            <workingDirectory>${project.build.directory}</workingDirectory>
-                            <executable>java</executable>
-                            <arguments>
-                                <argument>-XX:+UseCompactObjectHeaders</argument>
-                                <argument>-XX:+UseZGC</argument>
-                                <argument>--enable-native-access=ALL-UNNAMED</argument>
-                                <argument>-cp</argument>
-                                <!-- classes + all runtime deps -->
-                                <argument>${project.build.outputDirectory}${path.separator}${project.build.directory}/dependency/*</argument>
-                                <argument>edd.engine.Main</argument> <!-- <== change me -->
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+            <!-- 4) Run from target/ so SDL3.dll is picked up -> Already done by the script -->
+<!--            <plugin>-->
+<!--                <groupId>org.codehaus.mojo</groupId>-->
+<!--                <artifactId>exec-maven-plugin</artifactId>-->
+<!--                <version>3.5.1</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <id>run-app</id>-->
+<!--                        <phase>verify</phase> &lt;!&ndash; runs after compile/package/copies &ndash;&gt;-->
+<!--                        <goals><goal>exec</goal></goals>-->
+<!--                        <configuration>-->
+<!--                            <workingDirectory>${project.build.directory}</workingDirectory>-->
+<!--                            <executable>java</executable>-->
+<!--                            <arguments>-->
+<!--                                <argument>-XX:+UseCompactObjectHeaders</argument>-->
+<!--                                <argument>-XX:+UseZGC</argument>-->
+<!--                                <argument>&#45;&#45;enable-native-access=ALL-UNNAMED</argument>-->
+<!--                                <argument>-cp</argument>-->
+<!--                                &lt;!&ndash; classes + all runtime deps &ndash;&gt;-->
+<!--                                <argument>${project.build.outputDirectory}${path.separator}${project.build.directory}/dependency/*</argument>-->
+<!--                                <argument>edd.engine.Main</argument> &lt;!&ndash; <== change me &ndash;&gt;-->
+<!--                            </arguments>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
         </plugins>
     </build>
 
