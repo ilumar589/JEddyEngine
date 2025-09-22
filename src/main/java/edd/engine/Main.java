@@ -34,7 +34,7 @@ public class Main {
                         break;
                     }
 
-                    // KEY DOWN
+                    // SOME KEY DOWN
                     int keyDown = SDL3.SDL_EVENT_KEY_DOWN();
                     if (type == keyDown) {
                         final var key = SDL_Event.key(sdlEvent);
@@ -52,7 +52,7 @@ public class Main {
                     }
 
                     // default
-                    IO.println("Unknown event type: " + type);
+//                    IO.println("Unknown event type: " + type);
                     break;
                 }
             }
