@@ -1,5 +1,6 @@
 package edd.engine;
 
+import edd.engine.util.SdlGpu;
 import org.libsdl3.*;
 
 import java.lang.foreign.Arena;
@@ -14,68 +15,50 @@ import static org.libsdl3.SDL3_2.SDL_GPU_STOREOP_STORE;
 
 public class Main {
     static void main() {
-        final var sdlInitOk = SDL3.SDL_Init(SDL3.SDL_INIT_VIDEO());
-        assert sdlInitOk;
+        if (!SDL3.SDL_Init(SDL3.SDL_INIT_VIDEO())) throw new IllegalStateException("SDL_Init failed");
 
-        try (final var arena = Arena.ofConfined()) {
-            final var windowTitle = arena.allocateFrom("Hello SDL3");
+        try (var app = Arena.ofConfined()) {
+            var windowTitle = app.allocateFrom("Hello SDL3");
+            var window = SDL3.SDL_CreateWindow(windowTitle, 1280, 780, 0);
+            if (window.equals(MemorySegment.NULL)) throw new IllegalStateException("SDL_CreateWindow failed");
 
-            final var window = SDL3.SDL_CreateWindow(windowTitle, 1280, 780, 0);
-            assert window != MemorySegment.NULL;
+            var gpuDevice = SDL3.SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV(), true, MemorySegment.NULL);
+            if (gpuDevice.equals(MemorySegment.NULL)) throw new IllegalStateException("SDL_CreateGPUDevice failed");
 
-            final var gpuDevice = SDL3.SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV(),
-                    true,
-                    MemorySegment.NULL);
-            assert gpuDevice != MemorySegment.NULL;
-
-            final var gpuClaimed = SDL3.SDL_ClaimWindowForGPUDevice(gpuDevice, window);
-            assert gpuClaimed;
+            if (!SDL3.SDL_ClaimWindowForGPUDevice(gpuDevice, window))
+                throw new IllegalStateException("SDL_ClaimWindowForGPUDevice failed");
 
             boolean running = true;
             while (running) {
-                // poll events
-                running = pollEvents(arena);
+                running = pollEvents();
 
-                // update game state
+                // ——— Render ———
+                var cmdBuffer = SDL3.SDL_AcquireGPUCommandBuffer(gpuDevice);
+                if (cmdBuffer.equals(MemorySegment.NULL)) {
+                    // rare, just skip this frame
+                    continue;
+                }
 
-                // render
+                try (var frame = Arena.ofConfined()) {
+                    var acquired = SdlGpu.acquireSwapchainTexture(cmdBuffer, window, frame);
+                    if (acquired == null) {
+                        // minimized / not ready; helper already canceled the cmd buffer
+                        continue;
+                    }
 
-                final var cmdBuffer = SDL3.SDL_AcquireGPUCommandBuffer(gpuDevice);
-                final var swapChainTexture = arena.allocate(ValueLayout.ADDRESS); //SDL_GPU_Texture**
-                final var acquireOk = SDL3.SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuffer,
-                        window,
-                        swapChainTexture,
-                        MemorySegment.NULL,
-                        MemorySegment.NULL);
-                assert acquireOk;
+                    var colorTarget = SdlGpu.makeColorTarget(frame, acquired.texture(),
+                            0.0f, 0.2f, 0.4f, 1.0f);
 
+                    var renderPass = SDL3.SDL_BeginGPURenderPass(cmdBuffer, colorTarget, 1, MemorySegment.NULL);
 
+                    // TODO: draw calls here…
 
-                final var colorTargetInfo = SDL_GPUColorTargetInfo.allocate(arena);
-                SDL_GPUColorTargetInfo.texture(colorTargetInfo, swapChainTexture.get(ValueLayout.ADDRESS, 0));
-                SDL_GPUColorTargetInfo.load_op(colorTargetInfo, SDL_GPU_LOADOP_CLEAR());
+                    SDL3.SDL_EndGPURenderPass(renderPass);
 
-                final var clearColor = SDL_FColor.allocate(arena);
-                SDL_FColor.r(clearColor, 0.0f);
-                SDL_FColor.g(clearColor, 0.2f);
-                SDL_FColor.b(clearColor, 0.4f);
-                SDL_FColor.a(clearColor, 1.0f);
-
-                SDL_GPUColorTargetInfo.clear_color(colorTargetInfo, clearColor);
-                SDL_GPUColorTargetInfo.store_op(colorTargetInfo, SDL_GPU_STOREOP_STORE());
-
-                final var renderPass = SDL3.SDL_BeginGPURenderPass(cmdBuffer, colorTargetInfo, 1, MemorySegment.NULL);
-
-                // draw stuff
-
-                SDL3.SDL_EndGPURenderPass(renderPass);
-
-                // more render passes
-
-                // submit command buffer
-                final var submitOk = SDL3.SDL_SubmitGPUCommandBuffer(cmdBuffer);
-                assert submitOk;
-
+                    if (!SDL3.SDL_SubmitGPUCommandBuffer(cmdBuffer)) {
+                        throw new IllegalStateException("SDL_SubmitGPUCommandBuffer failed");
+                    }
+                }
             }
 
             SDL3.SDL_DestroyWindow(window);
@@ -83,39 +66,22 @@ public class Main {
         }
     }
 
-    // returns true if the events keep going
-    private static boolean pollEvents(Arena arena) {
-        final var sdlEvent = SDL_Event.allocate(arena);
+    /** Drain the SDL event queue; return false to quit. */
+    private static boolean pollEvents() {
+        try (var arena = Arena.ofConfined()) {
+            var ev = SDL_Event.allocate(arena);
+            while (SDL3.SDL_PollEvent(ev)) {
+                int type = SDL_Event.type(ev);
 
-        while (SDL3.SDL_PollEvent(sdlEvent)) {
-            int type = SDL_Event.type(sdlEvent);
+                if (type == SDL3.SDL_EVENT_QUIT()) return false;
+                if (type == SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED()) return false;
 
-            // QUIT
-            if (type == SDL3.SDL_EVENT_QUIT()) {
-                return false;
+                if (type == SDL3.SDL_EVENT_KEY_DOWN()) {
+                    var key = SDL_Event.key(ev);
+                    if (SDL_KeyboardEvent.key(key) == SDLK_ESCAPE()) return false;
+                }
             }
-
-            if (isEscapePressed(type, sdlEvent)) {
-                return false;
-            }
-
-            // window closed
-            if (type == SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED()) {
-                return false;
-            }
-
             return true;
         }
-
-        return true;
-    }
-
-    private static boolean isEscapePressed(int sdlEventType, MemorySegment sdlEvent) {
-        if (sdlEventType == SDL3.SDL_EVENT_KEY_DOWN()) {
-            final var key = SDL_Event.key(sdlEvent);
-            int scancode = SDL_KeyboardEvent.key(key);
-            return scancode == SDLK_ESCAPE();
-        }
-        return false;
     }
 }
