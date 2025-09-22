@@ -7,6 +7,8 @@ import org.libsdl3.SDL_KeyboardEvent;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 
+import static org.libsdl3.SDL3_1.SDLK_ESCAPE;
+
 
 public class Main {
     static void main() {
@@ -20,47 +22,54 @@ public class Main {
 
             assert window != MemorySegment.NULL;
 
-            final var sdlEvent = SDL_Event.allocate(arena);
 
             boolean running = true;
             while (running) {
-                while (SDL3.SDL_PollEvent(sdlEvent)) {
-                    int type = SDL_Event.type(sdlEvent);
-
-                    // QUIT
-                    int quit = SDL3.SDL_EVENT_QUIT();
-                    if (type == quit) {
-                        running = false;
-                        break;
-                    }
-
-                    // SOME KEY DOWN
-                    int keyDown = SDL3.SDL_EVENT_KEY_DOWN();
-                    if (type == keyDown) {
-                        final var key = SDL_Event.key(sdlEvent);
-                        int scancode = SDL_KeyboardEvent.key(key);
-
-                        IO.println("Key pressed: " + scancode);
-                        break;
-                    }
-
-                    // window closed
-                    int windowsClosedRequested = SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED();
-                    if (type == windowsClosedRequested) {
-                        running = false;
-                        break;
-                    }
-
-                    // default
-//                    IO.println("Unknown event type: " + type);
-                    break;
-                }
+                // poll events
+                running = pollEvents(arena);
             }
 
             SDL3.SDL_DestroyWindow(window);
             SDL3.SDL_Quit();
         }
+    }
 
+    // returns true if the events keep going
+    private static boolean pollEvents(Arena arena) {
+        final var sdlEvent = SDL_Event.allocate(arena);
 
+        while (SDL3.SDL_PollEvent(sdlEvent)) {
+            int type = SDL_Event.type(sdlEvent);
+
+            // QUIT
+            int quit = SDL3.SDL_EVENT_QUIT();
+            if (type == quit) {
+                return false;
+            }
+
+            if (isEscapePressed(type, sdlEvent)) {
+                return false;
+            }
+
+            // window closed
+            int windowsClosedRequested = SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED();
+            if (type == windowsClosedRequested) {
+                return false;
+            }
+
+            return true;
+        }
+
+        return true;
+    }
+
+    private static boolean isEscapePressed(int sdlEventType, MemorySegment sdlEvent) {
+        final int keyDownType = SDL3.SDL_EVENT_KEY_DOWN();
+        if (sdlEventType == keyDownType) {
+            final var key = SDL_Event.key(sdlEvent);
+            int scancode = SDL_KeyboardEvent.key(key);
+            return scancode == SDLK_ESCAPE();
+        }
+        return false;
     }
 }
