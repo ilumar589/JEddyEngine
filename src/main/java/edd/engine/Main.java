@@ -41,7 +41,7 @@ public class Main {
                 // render
 
                 final var cmdBuffer = SDL3.SDL_AcquireGPUCommandBuffer(gpuDevice);
-                final var swapChainTexture = arena.allocate(ValueLayout.ADDRESS); //SDL_GPU_Texture*
+                final var swapChainTexture = arena.allocate(ValueLayout.ADDRESS); //SDL_GPU_Texture**
                 final var acquireOk = SDL3.SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuffer,
                         window,
                         swapChainTexture,
